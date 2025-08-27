@@ -202,6 +202,7 @@ public class LinkedHashMap<K,V>
     /**
      * HashMap.Node subclass for normal LinkedHashMap entries.
      */
+    // 节点元素数据结构，相较于HashMap.Node增加了链表节点before和after
     static class Entry<K,V> extends HashMap.Node<K,V> {
         Entry<K,V> before, after;
         Entry(int hash, K key, V value, Node<K,V> next) {
@@ -233,22 +234,27 @@ public class LinkedHashMap<K,V>
     // internal utilities
 
     // link at the end of list
+    // 在列表的末尾增加节点
     private void linkNodeAtEnd(LinkedHashMap.Entry<K,V> p) {
+        // 头插法，双向链表的头部节点为列表末尾节点
         if (putMode == PUT_FIRST) {
             LinkedHashMap.Entry<K,V> first = head;
             head = p;
             if (first == null)
-                tail = p;
+                tail = p; // 空链表，新增的节点为链表的第一个节点
             else {
+                // 将新增节点和原本的链表头节点关联起来
                 p.after = first;
                 first.before = p;
             }
         } else {
+            // 尾插法，双向链表的尾部节点为列表末尾节点
             LinkedHashMap.Entry<K,V> last = tail;
             tail = p;
             if (last == null)
-                head = p;
+                head = p;   // 空链表，新增的节点为链表的第一个节点
             else {
+                // 将新增节点和原本的链表尾节点关联起来
                 p.before = last;
                 last.after = p;
             }
@@ -256,81 +262,106 @@ public class LinkedHashMap<K,V>
     }
 
     // apply src's links to dst
+    // 在双向链表中，用dst节点信息替换src节点信息
     private void transferLinks(LinkedHashMap.Entry<K,V> src,
                                LinkedHashMap.Entry<K,V> dst) {
+        // 将src节点前后连接的节点信息赋值给dst节点
         LinkedHashMap.Entry<K,V> b = dst.before = src.before;
         LinkedHashMap.Entry<K,V> a = dst.after = src.after;
         if (b == null)
-            head = dst;
+            head = dst; // src在链表开头，将dst节点设置为链表头节点head
         else
-            b.after = dst;
+            b.after = dst;  // 将原src前一个节点的after指针指向dst节点
         if (a == null)
-            tail = dst;
+            tail = dst; // src在链表末尾，将dst节点设置为链表末尾节点tail
         else
-            a.before = dst;
+            a.before = dst; // 将原src后一个节点的before指针指向dst节点
     }
 
     // overrides of HashMap hook methods
 
     void reinitialize() {
+        // 重置LinkedHashMap的存储信息：
+        // 1. 节点数组置空-table
+        // 2. 节点set置空-entrySet
+        // 3. 键set置空-keySet
+        // 4. 值collection置空-values
+        // 5. map结构性修改次数置零-modCount
+        // 6. map扩容的阈值置零-threshold
+        // 7. map的容量置零-size
         super.reinitialize();
+        // 8. 链表头节点置空-head
+        // 9. 链表尾节点置空-tail
         head = tail = null;
     }
 
+    // 创建节点并返回
     Node<K,V> newNode(int hash, K key, V value, Node<K,V> e) {
         LinkedHashMap.Entry<K,V> p =
             new LinkedHashMap.Entry<>(hash, key, value, e);
+        // 将新增的节点加入到双向链表当中
         linkNodeAtEnd(p);
         return p;
     }
 
+    // 替换节点p链接的下一个节点为指定的节点next并返回
     Node<K,V> replacementNode(Node<K,V> p, Node<K,V> next) {
         LinkedHashMap.Entry<K,V> q = (LinkedHashMap.Entry<K,V>)p;
         LinkedHashMap.Entry<K,V> t =
             new LinkedHashMap.Entry<>(q.hash, q.key, q.value, next);
+        // 将节点p所处双向链表中的链接信息复制给节点t（before，after）
         transferLinks(q, t);
         return t;
     }
 
+    // 创建树节点（红黑树）并返回
     TreeNode<K,V> newTreeNode(int hash, K key, V value, Node<K,V> next) {
         TreeNode<K,V> p = new TreeNode<>(hash, key, value, next);
+        // 将新增的节点加入到双向链表当中
         linkNodeAtEnd(p);
         return p;
     }
 
+    // 替换树节点p链接的下一个节点为指定的节点next并返回
     TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
         LinkedHashMap.Entry<K,V> q = (LinkedHashMap.Entry<K,V>)p;
         TreeNode<K,V> t = new TreeNode<>(q.hash, q.key, q.value, next);
+        // 将节点p所处双向链表中的链接信息复制给节点t（before，after）
         transferLinks(q, t);
         return t;
     }
 
+    // 推测是在删除节点时，将节点p所处的链表节点信息删除
     void afterNodeRemoval(Node<K,V> e) { // unlink
         LinkedHashMap.Entry<K,V> p =
             (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
+        // 断开链接，将节点p所处的链表节点信息删除
         p.before = p.after = null;
         if (b == null)
-            head = a;
+            head = a;   // 删除的节点为头节点，需要将链表头节点head设置为被删除节点的后一个节点
         else
-            b.after = a;
+            b.after = a;    // 删除的节点为中间节点，需要将被删除节点的前一个节点after指向被删除节点的后一个节点
         if (a == null)
-            tail = b;
+            tail = b;   // 删除的节点为尾节点，需要将链表尾节点tail设置为被删除节点的前一个节点
         else
-            a.before = b;
+            a.before = b;   // 删除的节点为中间节点，需要将被删除节点的后一个节点before指向被删除节点的前一个节点
     }
 
+    // 插入节点后，执行的逻辑，可通过继承重写removeEldestEntry方法来启用自动删除最旧Entry节点的能力，默认情况下不会执行任何操作
     void afterNodeInsertion(boolean evict) { // possibly remove eldest
         LinkedHashMap.Entry<K,V> first;
+        // 这个evict在一般情况下都是true，比如HashMap.put方法
         if (evict && (first = head) != null && removeEldestEntry(first)) {
             K key = first.key;
+            // 执行删除节点的具体逻辑，详见java.util.HashMap.removeNode方法
             removeNode(hash(key), key, null, false, true);
         }
     }
 
-    static final int PUT_NORM = 0;
-    static final int PUT_FIRST = 1;
-    static final int PUT_LAST = 2;
-    transient int putMode = PUT_NORM;
+    static final int PUT_NORM = 0;  // 大部分情况下，等同于PUT_LAST，比如在维护双向链表时
+    static final int PUT_FIRST = 1; // 插入节点时，将节点插入到链表头部
+    static final int PUT_LAST = 2;  // 插入节点时，将节点插入到链表尾部
+    transient int putMode = PUT_NORM;   // 插入模式
 
     // Called after update, but not after insertion
     void afterNodeAccess(Node<K,V> e) {
